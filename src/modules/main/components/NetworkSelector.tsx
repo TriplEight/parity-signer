@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React, { ReactElement, useState } from 'react';
-import { BackHandler, FlatList } from 'react-native';
+import React, { ReactElement, useMemo, useState } from 'react';
+import { BackHandler, FlatList, FlatListProps } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { NetworkCard } from 'components/AccountCard';
@@ -38,10 +38,10 @@ import { NavigationAccountIdentityProps } from 'types/props';
 import { alertPathDerivationError } from 'utils/alertUtils';
 import { getExistedNetworkKeys, getIdentityName } from 'utils/identitiesUtils';
 import {
-	navigateToPathDerivation,
 	navigateToPathDetails,
 	navigateToPathsList,
-	unlockSeedPhrase
+	unlockSeedPhrase,
+	useUnlockSeed
 } from 'utils/navigationHelpers';
 import { useSeedRef } from 'utils/seedRefHooks';
 import QrScannerTab from 'components/QrScannerTab';
@@ -64,7 +64,7 @@ export default function NetworkSelector({
 	const [shouldShowMoreNetworks, setShouldShowMoreNetworks] = useState(false);
 	const { identities, currentIdentity } = accounts.state;
 	const seedRefHooks = useSeedRef(currentIdentity.encryptedSeed);
-
+	const { unlockWithoutPassword } = useUnlockSeed(seedRefHooks.isSeedRefValid);
 	// catch android back button and prevent exiting the app
 	useFocusEffect(
 		React.useCallback((): any => {
@@ -83,6 +83,12 @@ export default function NetworkSelector({
 			return (): void => backHandler.remove();
 		}, [shouldShowMoreNetworks])
 	);
+
+	const onAddCustomPath = (): Promise<void> =>
+		unlockWithoutPassword({
+			name: 'PathDerivation',
+			params: { parentPath: '' }
+		});
 
 	const sortNetworkKeys = (
 		[, params1]: [any, NetworkParams],
@@ -142,32 +148,32 @@ export default function NetworkSelector({
 		}
 	};
 
-	const renderCustomPathCard = (): React.ReactElement => (
-		<NetworkCard
-			isAdd={true}
-			onPress={(): Promise<void> =>
-				navigateToPathDerivation(navigation, '', seedRefHooks.isSeedRefValid)
-			}
-			testID={testIDs.Main.addCustomNetworkButton}
-			title="Create Custom Path"
-			networkColor={colors.background.app}
-		/>
-	);
-
-	const renderAddButton = (): React.ReactElement => {
-		if (isNew) return renderCustomPathCard();
-		if (!shouldShowMoreNetworks) {
-			return (
-				<NetworkCard
-					isAdd={true}
-					onPress={(): void => setShouldShowMoreNetworks(true)}
-					testID={testIDs.Main.addNewNetworkButton}
-					title="Add Network Account"
-					networkColor={colors.background.app}
-				/>
-			);
+	const getListOptions = (): Partial<FlatListProps<any>> => {
+		if (isNew) return {};
+		if (shouldShowMoreNetworks) {
+			return {
+				ListHeaderComponent: (
+					<NetworkCard
+						isAdd={true}
+						onPress={onAddCustomPath}
+						testID={testIDs.Main.addCustomNetworkButton}
+						title="Create Custom Path"
+						networkColor={colors.background.app}
+					/>
+				)
+			};
 		} else {
-			return renderCustomPathCard();
+			return {
+				ListFooterComponent: (
+					<NetworkCard
+						isAdd={true}
+						onPress={(): void => setShouldShowMoreNetworks(true)}
+						testID={testIDs.Main.addNewNetworkButton}
+						title="Add Network Account"
+						networkColor={colors.background.app}
+					/>
+				)
+			};
 		}
 	};
 
@@ -202,7 +208,10 @@ export default function NetworkSelector({
 		}
 	};
 
-	const availableNetworks = getExistedNetworkKeys(currentIdentity);
+	const availableNetworks = useMemo(
+		() => getExistedNetworkKeys(currentIdentity),
+		[currentIdentity]
+	);
 	const networkList = Object.entries(NETWORK_LIST).filter(filterNetworkKeys);
 	networkList.sort(sortNetworkKeys);
 
@@ -237,7 +246,7 @@ export default function NetworkSelector({
 				keyExtractor={(item: [string, NetworkParams]): string => item[0]}
 				renderItem={renderNetwork}
 				testID={testIDs.Main.chooserScreen}
-				ListFooterComponent={renderAddButton}
+				{...getListOptions()}
 			/>
 			{!shouldShowMoreNetworks && !isNew && <QrScannerTab />}
 		</SafeAreaViewContainer>

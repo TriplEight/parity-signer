@@ -15,16 +15,17 @@
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
 import React, { useMemo } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView } from 'react-native';
 
 import { PathDetailsView } from './PathDetails';
 
-import { navigateToPathDerivation } from 'utils/navigationHelpers';
+import { PathGroup } from 'types/identityTypes';
+import PathGroupCard from 'components/PathGroupCard';
+import { useUnlockSeed } from 'utils/navigationHelpers';
 import { useSeedRef } from 'utils/seedRefHooks';
 import { SafeAreaViewContainer } from 'components/SafeAreaContainer';
 import { NETWORK_LIST, UnknownNetworkKeys } from 'constants/networkSpecs';
 import testIDs from 'e2e/testIDs';
-import { PathGroup } from 'types/identityTypes';
 import {
 	isEthereumNetworkParams,
 	isUnknownNetworkParams
@@ -33,15 +34,12 @@ import { NavigationAccountIdentityProps } from 'types/props';
 import { withAccountStore, withCurrentIdentity } from 'utils/HOC';
 import {
 	getPathsWithSubstrateNetworkKey,
-	groupPaths,
-	removeSlash
+	groupPaths
 } from 'utils/identitiesUtils';
-import ButtonNewDerivation from 'components/ButtonNewDerivation';
+import QRScannerAndDerivationTab from 'components/QRScannerAndDerivationTab';
 import PathCard from 'components/PathCard';
 import Separator from 'components/Separator';
-import fontStyles from 'styles/fontStyles';
 import { LeftScreenHeading } from 'components/ScreenHeading';
-import QrScannerTab from 'components/QrScannerTab';
 
 function PathsList({
 	accounts,
@@ -63,6 +61,7 @@ function PathsList({
 		return groupPaths(listedPaths);
 	}, [currentIdentity, isEthereumPath, networkKey]);
 	const { isSeedRefValid } = useSeedRef(currentIdentity.encryptedSeed);
+	const { unlockWithoutPassword } = useUnlockSeed(isSeedRefValid);
 
 	if (isEthereumNetworkParams(networkParams)) {
 		return (
@@ -78,6 +77,12 @@ function PathsList({
 	const { navigate } = navigation;
 	const rootPath = `//${networkParams.pathId}`;
 
+	const onTapDeriveButton = (): Promise<void> =>
+		unlockWithoutPassword({
+			name: 'PathDerivation',
+			params: { parentPath: isUnknownNetworkPath ? '' : rootPath }
+		});
+
 	const renderSinglePath = (pathsGroup: PathGroup): React.ReactElement => {
 		const path = pathsGroup.paths[0];
 		return (
@@ -91,39 +96,6 @@ function PathsList({
 		);
 	};
 
-	const renderGroupPaths = (pathsGroup: PathGroup): React.ReactElement => (
-		<View key={`group${pathsGroup.title}`} style={{ marginTop: 24 }}>
-			<Separator
-				shadow={true}
-				style={{
-					height: 0,
-					marginVertical: 0
-				}}
-			/>
-			<View
-				style={{
-					marginVertical: 16,
-					paddingHorizontal: 16
-				}}
-			>
-				<Text style={fontStyles.t_prefix}>{removeSlash(pathsGroup.title)}</Text>
-				<Text style={fontStyles.t_codeS}>
-					{networkParams.pathId}
-					{pathsGroup.title}
-				</Text>
-			</View>
-			{pathsGroup.paths.map(path => (
-				<PathCard
-					key={path}
-					testID={testIDs.PathsList.pathCard + path}
-					identity={currentIdentity}
-					path={path}
-					onPress={(): void => navigate('PathDetails', { path })}
-				/>
-			))}
-		</View>
-	);
-
 	return (
 		<SafeAreaViewContainer>
 			<ScrollView testID={testIDs.PathsList.screen}>
@@ -133,24 +105,25 @@ function PathsList({
 					networkKey={networkKey}
 				/>
 				{(pathsGroups as PathGroup[]).map(pathsGroup =>
-					pathsGroup.paths.length === 1
-						? renderSinglePath(pathsGroup)
-						: renderGroupPaths(pathsGroup)
+					pathsGroup.paths.length === 1 ? (
+						renderSinglePath(pathsGroup)
+					) : (
+						<PathGroupCard
+							currentIdentity={currentIdentity}
+							pathGroup={pathsGroup}
+							networkParams={networkParams}
+							accounts={accounts}
+							key={pathsGroup.title}
+						/>
+					)
 				)}
 				<Separator style={{ backgroundColor: 'transparent' }} />
 			</ScrollView>
-			<ButtonNewDerivation
-				testID={testIDs.PathsList.deriveButton}
+			<QRScannerAndDerivationTab
+				derivationTestID={testIDs.PathsList.deriveButton}
 				title="Derive New Account"
-				onPress={(): Promise<void> =>
-					navigateToPathDerivation(
-						navigation,
-						isUnknownNetworkPath ? '' : rootPath,
-						isSeedRefValid
-					)
-				}
+				onPress={onTapDeriveButton}
 			/>
-			<QrScannerTab />
 		</SafeAreaViewContainer>
 	);
 }

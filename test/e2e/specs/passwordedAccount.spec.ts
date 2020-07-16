@@ -1,3 +1,5 @@
+import { by, element } from 'detox';
+
 import { ScanTestRequest } from 'e2e/mockScanRequests';
 import testIDs from 'e2e/testIDs';
 import {
@@ -15,6 +17,7 @@ import {
 const {
 	IdentityPin,
 	PathDerivation,
+	PathDetail,
 	PathsList,
 	SecurityHeader,
 	SignedTx
@@ -23,7 +26,7 @@ const {
 const passwordedPath = '//passworded';
 const password = 'random';
 
-describe('Load test', () => {
+describe('passworded account test', () => {
 	testRecoverIdentity();
 
 	it('derive a passworded account', async () => {
@@ -31,21 +34,36 @@ describe('Load test', () => {
 		await testInput(PathDerivation.pathInput, passwordedPath);
 		await testTap(PathDerivation.togglePasswordButton);
 		await testInput(PathDerivation.passwordInput, password);
+		await element(by.text('Done')).tap();
 		await testExist(PathsList.pathCard + `//kusama${passwordedPath}`);
 	});
 
-	it('should sign the set remarks request', async () => {
-		await launchWithScanRequest(ScanTestRequest.passwordedAccountExtrinsic);
-		await testTap(SecurityHeader.scanButton);
-		await testInputWithDone(IdentityPin.unlockPinInput, pinCode);
-		await testInput(IdentityPin.passwordInput, password);
-		await testVisible(SignedTx.qrView);
+	describe('Kusama exporting test', () => {
+		it('is able to export a hard derived account with password', async () => {
+			await testTap(`${PathsList.pathCard}//kusama${passwordedPath}`);
+			await testTap(PathDetail.popupMenuButton);
+			await testTap(PathDetail.exportButton);
+			await testInput(IdentityPin.passwordInput, password);
+			await testExist(
+				'secret:0xffa534554346807099dfbf034157798cf94541b357a3fe27f37c2175594f4bf5:0xb0a8d493285c2df73290dfb7e61f870f17b41801197a149ca93654499ea3dafe:passworded'
+			);
+		});
 	});
 
-	it('does only need password again in the second try', async () => {
-		await tapBack();
-		await testTap(SecurityHeader.scanButton);
-		await testInput(IdentityPin.passwordInput, password);
-		await testVisible(SignedTx.qrView);
+	describe('Kusama signing Test', () => {
+		it('should sign the set remarks request', async () => {
+			await launchWithScanRequest(ScanTestRequest.passwordedAccountExtrinsic);
+			await testTap(SecurityHeader.scanButton);
+			await testInputWithDone(IdentityPin.unlockPinInput, pinCode);
+			await testInput(IdentityPin.passwordInput, password);
+			await testVisible(SignedTx.qrView);
+		});
+
+		it('does only need password again in the second try', async () => {
+			await tapBack();
+			await testTap(SecurityHeader.scanButton);
+			await testInput(IdentityPin.passwordInput, password);
+			await testVisible(SignedTx.qrView);
+		});
 	});
 });

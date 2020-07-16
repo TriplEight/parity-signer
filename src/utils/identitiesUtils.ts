@@ -83,6 +83,15 @@ export const isSubstratePath = (path: string): boolean =>
 export const isEthereumAccountId = (v: string): boolean =>
 	v.indexOf('ethereum:') === 0;
 
+export const isSubstrateHardDerivedPath = (path: string): boolean => {
+	if (!isSubstratePath(path)) return false;
+	const pathFragments = path.match(pathsRegex.allPath);
+	if (!pathFragments || pathFragments.length === 0) return false;
+	return pathFragments.every((pathFragment: string) => {
+		return pathFragment.substring(0, 2) === '//';
+	});
+};
+
 export const extractAddressFromAccountId = (id: string): string => {
 	const withoutNetwork = id.split(':')[1];
 	const address = withoutNetwork.split('@')[0];
@@ -163,14 +172,15 @@ export const getPathsWithSubstrateNetworkKey = (
 	networkKey: string
 ): string[] => {
 	const pathEntries = Array.from(identity.meta.entries());
-	const targetPathId = SUBSTRATE_NETWORK_LIST[networkKey]?.pathId;
+	const targetPathId =
+		SUBSTRATE_NETWORK_LIST[networkKey]?.pathId || unknownNetworkPathId;
 	const pathReducer = (
 		groupedPaths: string[],
 		[path, pathMeta]: [string, AccountMeta]
 	): string[] => {
 		let pathId;
 		if (!isSubstratePath(path)) return groupedPaths;
-		if (pathMeta.hasOwnProperty('networkPathId')) {
+		if (pathMeta.networkPathId !== undefined) {
 			pathId = pathMeta.networkPathId;
 		} else {
 			pathId = extractPathId(path);
@@ -331,6 +341,39 @@ export const getPathName = (
 	return extractSubPathName(path);
 };
 
+const _comparePathGroups = (a: PathGroup, b: PathGroup): number => {
+	const isSingleGroupA = a.paths.length === 1;
+	const isSingleGroupB = b.paths.length === 1;
+	if (isSingleGroupA && isSingleGroupB) {
+		return a.paths[0].length - b.paths[0].length;
+	}
+	if (isSingleGroupA !== isSingleGroupB) {
+		return isSingleGroupA ? -1 : 1;
+	}
+	return a.title.localeCompare(b.title);
+};
+
+const _comparePathsInGroup = (a: string, b: string): number => {
+	const pathFragmentsA = a.match(pathsRegex.allPath)!;
+	const pathFragmentsB = b.match(pathsRegex.allPath)!;
+	if (pathFragmentsA.length !== pathFragmentsB.length) {
+		return pathFragmentsA.length - pathFragmentsB.length;
+	}
+	const lastFragmentA = pathFragmentsA[pathFragmentsA.length - 1];
+	const lastFragmentB = pathFragmentsB[pathFragmentsB.length - 1];
+	const numberA = parseInt(removeSlash(lastFragmentA), 10);
+	const numberB = parseInt(removeSlash(lastFragmentB), 10);
+	const isNumberA = !isNaN(numberA);
+	const isNumberB = !isNaN(numberB);
+	if (isNumberA && isNumberB) {
+		return numberA - numberB;
+	}
+	if (isNumberA !== isNumberB) {
+		return isNumberA ? -1 : 1;
+	}
+	return lastFragmentA.localeCompare(lastFragmentB);
+};
+
 /**
  * This function decides how to group the list of derivation paths in the display based on the following rules.
  * If the network is unknown: group by the first subpath, e.g. '/random' of '/random//derivation/1'
@@ -349,7 +392,7 @@ export const groupPaths = (paths: string[]): PathGroup[] => {
 		const existedItem = pathGroup.find(p => p.title === groupName);
 		if (existedItem) {
 			existedItem.paths.push(fullPath);
-			existedItem.paths.sort();
+			existedItem.paths.sort(_comparePathsInGroup);
 		} else {
 			pathGroup.push({ paths: [fullPath], title: groupName });
 		}
@@ -389,12 +432,7 @@ export const groupPaths = (paths: string[]): PathGroup[] => {
 		},
 		[]
 	);
-	return groupedPaths.sort((a, b) => {
-		if (a.paths.length === 1 && b.paths.length === 1) {
-			return a.paths[0].length - b.paths[0].length;
-		}
-		return a.paths.length - b.paths.length;
-	});
+	return groupedPaths.sort(_comparePathGroups);
 };
 
 export const getMetadata = (networkKey: string): string => {

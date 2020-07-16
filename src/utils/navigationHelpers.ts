@@ -14,11 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import { CommonActions } from '@react-navigation/native';
+import {
+	CommonActions,
+	useNavigation,
+	useNavigationState
+} from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 
 import { Identity } from 'types/identityTypes';
 import { RootStackParamList } from 'types/routes';
+
+type Route = {
+	name: keyof RootStackParamList;
+	params?: RootStackParamList[keyof RootStackParamList];
+};
 
 export type GenericNavigationProps<
 	RouteName extends keyof RootStackParamList
@@ -42,6 +51,56 @@ export const unlockAndReturnSeed = async <
 			shouldReturnSeed: true
 		});
 	});
+
+type UnlockWithPassword = (
+	nextRoute: (password: string) => Route,
+	identity?: Identity
+) => Promise<void>;
+
+type UnlockWithoutPassword = (
+	nextRoute: Route,
+	identity?: Identity
+) => Promise<void>;
+export const useUnlockSeed = (
+	isSeedRefValid: boolean
+): {
+	unlockWithPassword: UnlockWithPassword;
+	unlockWithoutPassword: UnlockWithoutPassword;
+} => {
+	const currentRoutes = useNavigationState(state => state.routes) as Route[];
+	const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+	const resetRoutes = (routes: Route[]): void => {
+		const resetAction = CommonActions.reset({
+			index: routes.length,
+			routes: routes
+		});
+		navigation.dispatch(resetAction);
+	};
+
+	const unlockWithPassword: UnlockWithPassword = async (
+		nextRoute,
+		identity
+	) => {
+		const password = await unlockSeedPhraseWithPassword(
+			navigation,
+			isSeedRefValid,
+			identity
+		);
+		const newRoutes = currentRoutes.concat(nextRoute(password));
+		resetRoutes(newRoutes);
+	};
+
+	const unlockWithoutPassword: UnlockWithoutPassword = async (
+		nextRoute,
+		identity
+	) => {
+		await unlockSeedPhrase(navigation, isSeedRefValid, identity);
+		const newRoutes = currentRoutes.concat(nextRoute);
+		resetRoutes(newRoutes);
+	};
+
+	return { unlockWithPassword, unlockWithoutPassword };
+};
 
 export const unlockSeedPhrase = async <
 	RouteName extends keyof RootStackParamList
@@ -198,18 +257,3 @@ export const navigateToLegacyAccountList = <
 >(
 	navigation: GenericNavigationProps<RouteName>
 ): void => resetNavigationTo(navigation, 'LegacyAccountList');
-
-export const navigateToPathDerivation = async <
-	RouteName extends keyof RootStackParamList
->(
-	navigation: GenericNavigationProps<RouteName>,
-	parentPath: string,
-	isSeedRefValid: boolean
-): Promise<void> => {
-	if (!isSeedRefValid) {
-		await unlockSeedPhrase(navigation, isSeedRefValid);
-	}
-	resetNavigationWithNetworkChooser(navigation, 'PathDerivation', {
-		parentPath
-	});
-};

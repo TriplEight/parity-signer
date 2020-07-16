@@ -18,6 +18,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
+import QRScannerAndDerivationTab from 'components/QRScannerAndDerivationTab';
 import { SafeAreaViewContainer } from 'components/SafeAreaContainer';
 import { defaultNetworkKey, UnknownNetworkKeys } from 'constants/networkSpecs';
 import testIDs from 'e2e/testIDs';
@@ -36,17 +37,14 @@ import {
 	getNetworkKey,
 	getPathName,
 	getPathsWithSubstrateNetworkKey,
+	isSubstrateHardDerivedPath,
 	isSubstratePath
 } from 'utils/identitiesUtils';
 import { alertDeleteAccount, alertPathDeletionError } from 'utils/alertUtils';
-import {
-	navigateToPathDerivation,
-	navigateToPathsList
-} from 'utils/navigationHelpers';
+import { navigateToPathsList, useUnlockSeed } from 'utils/navigationHelpers';
 import { generateAccountId } from 'utils/account';
-import UnknownAccountWarning from 'components/UnknownAccountWarning';
+import { UnknownAccountWarning } from 'components/Warnings';
 import { useSeedRef } from 'utils/seedRefHooks';
-import QrScannerTab from 'components/QrScannerTab';
 
 interface Props {
 	path: string;
@@ -67,6 +65,9 @@ export function PathDetailsView({
 	const address = getAddressWithPath(path, currentIdentity);
 	const accountName = getPathName(path, currentIdentity);
 	const { isSeedRefValid } = useSeedRef(currentIdentity.encryptedSeed);
+	const { unlockWithoutPassword, unlockWithPassword } = useUnlockSeed(
+		isSeedRefValid
+	);
 	if (!address) return <View />;
 	const isUnknownNetwork = networkKey === UnknownNetworkKeys.UNKNOWN;
 	const formattedNetworkKey = isUnknownNetwork ? defaultNetworkKey : networkKey;
@@ -75,7 +76,13 @@ export function PathDetailsView({
 		networkKey: formattedNetworkKey
 	});
 
-	const onOptionSelect = (value: string): void => {
+	const onTapDeriveButton = (): Promise<void> =>
+		unlockWithoutPassword({
+			name: 'PathDerivation',
+			params: { parentPath: path }
+		});
+
+	const onOptionSelect = async (value: string): Promise<void> => {
 		switch (value) {
 			case 'PathDelete':
 				alertDeleteAccount('this account', async () => {
@@ -98,9 +105,21 @@ export function PathDetailsView({
 					}
 				});
 				break;
-			case 'PathDerivation':
-				navigateToPathDerivation(navigation, path, isSeedRefValid);
+			case 'PathExport': {
+				const pathMeta = currentIdentity.meta.get(path)!;
+				if (pathMeta.hasPassword) {
+					await unlockWithPassword(password => ({
+						name: 'PathSecret',
+						params: {
+							password,
+							path
+						}
+					}));
+				} else {
+					await unlockWithoutPassword({ name: 'PathSecret', params: { path } });
+				}
 				break;
+			}
 			case 'PathManagement':
 				navigation.navigate('PathManagement', { path });
 				break;
@@ -121,9 +140,10 @@ export function PathDetailsView({
 							menuItems={[
 								{ text: 'Edit', value: 'PathManagement' },
 								{
-									hide: !isSubstratePath(path),
-									text: 'Derive Account',
-									value: 'PathDerivation'
+									hide: !isSubstrateHardDerivedPath(path),
+									testID: testIDs.PathDetail.exportButton,
+									text: 'Export Account',
+									value: 'PathExport'
 								},
 								{
 									testID: testIDs.PathDetail.deleteButton,
@@ -139,7 +159,13 @@ export function PathDetailsView({
 				<QrView data={`${accountId}:${accountName}`} />
 				{isUnknownNetwork && <UnknownAccountWarning isPath />}
 			</ScrollView>
-			<QrScannerTab />
+			{isSubstratePath(path) && (
+				<QRScannerAndDerivationTab
+					derivationTestID={testIDs.PathDetail.deriveButton}
+					title="Derive New Account"
+					onPress={onTapDeriveButton}
+				/>
+			)}
 		</SafeAreaViewContainer>
 	);
 }
@@ -149,7 +175,7 @@ function PathDetails({
 	navigation,
 	route
 }: NavigationAccountIdentityProps<'PathDetails'>): React.ReactElement {
-	const path = route.params.path ?? '';
+	const path = route.params.path;
 	const networkKey = getNetworkKey(path, accounts.state.currentIdentity);
 	return (
 		<PathDetailsView

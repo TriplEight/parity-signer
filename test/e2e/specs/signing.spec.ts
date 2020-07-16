@@ -33,7 +33,14 @@ import {
 import { ScanTestRequest } from 'e2e/mockScanRequests';
 import testIDs from 'e2e/testIDs';
 
-const { Main, PathDetail, SecurityHeader, SignedMessage, SignedTx } = testIDs;
+const {
+	Main,
+	PathDetail,
+	PathsList,
+	SecurityHeader,
+	SignedMessage,
+	SignedTx
+} = testIDs;
 
 const testSignedTx = async (): Promise<void> => {
 	await testTap(SecurityHeader.scanButton);
@@ -53,10 +60,21 @@ const testEthereumMessage = async (): Promise<void> => {
 	await testVisible(SignedMessage.qrView);
 };
 
-describe('Signing test', () => {
+describe('Signing ane exporting test', () => {
 	testRecoverIdentity();
 
 	describe('Kusama Signing Test', () => {
+		it('is able to export the signing account', async () => {
+			await testTap(PathsList.pathCard + '//kusama');
+			await testTap(PathDetail.popupMenuButton);
+			await testTap(PathDetail.exportButton);
+			await testExist(
+				'secret:0xdf46d55a2d98695e9342b67edae6669e5c0b4e1a3895f1adf85989565b9ab827:0xb0a8d493285c2df73290dfb7e61f870f17b41801197a149ca93654499ea3dafe:Kusama root'
+			);
+			await tapBack();
+			await testVisible(PathDetail.screen);
+		});
+
 		it('should sign the set remarks request', async () => {
 			await launchWithScanRequest(ScanTestRequest.SetRemarkExtrinsicKusama);
 			await testSignedTx();
