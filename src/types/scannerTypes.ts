@@ -1,4 +1,16 @@
+import { GenericExtrinsicPayload } from '@polkadot/types';
 import { Point, Size } from 'react-native-camera/types';
+
+import { FoundAccount } from 'types/identityTypes';
+import { Transaction } from 'utils/transaction';
+
+export type Frames = {
+	completedFramesCount: number;
+	isMultipart: boolean;
+	missedFrames: number[];
+	missingFramesMessage: string;
+	totalFramesCount: number;
+};
 
 export interface TxRequestData {
 	bounds: {
@@ -18,7 +30,22 @@ export interface TxRequestData {
 	target?: number;
 }
 
-export type ParsedData = SubstrateParsedData | EthereumParsedData;
+export type ParsedData =
+	| SubstrateParsedData
+	| EthereumParsedData
+	| NetworkParsedData;
+
+export type NetworkParsedData = {
+	action: 'addNetwork';
+	data: {
+		color: string;
+		decimals: number;
+		genesisHash: string;
+		prefix: number;
+		title: string;
+		unit: string;
+	};
+};
 
 export type EthereumParsedData = {
 	data: {
@@ -78,6 +105,39 @@ export type SURIObject = {
 	phrase: string;
 };
 
+export type MessageQRInfo = {
+	dataToSign: string | GenericExtrinsicPayload;
+	isHash: boolean;
+	isOversized: boolean;
+	message: string;
+	sender: FoundAccount;
+	type: 'message';
+};
+
+export type TxQRInfo = {
+	sender: FoundAccount;
+	recipient: FoundAccount;
+	type: 'transaction';
+	dataToSign: string | GenericExtrinsicPayload;
+	isHash: boolean;
+	isOversized: boolean;
+	tx: Transaction | GenericExtrinsicPayload | string | Uint8Array;
+};
+
+export type MultiFramesInfo = {
+	missedFrames: number[];
+	completedFramesCount: number;
+	totalFrameCount: number;
+};
+
+export type QrInfo = MessageQRInfo | TxQRInfo;
+
+export function isMultiFramesInfo(
+	data: MultiFramesInfo | SubstrateCompletedParsedData
+): data is MultiFramesInfo {
+	return (data as MultiFramesInfo).completedFramesCount !== undefined;
+}
+
 export function isEthereumCompletedParsedData(
 	parsedData: ParsedData
 ): parsedData is EthereumParsedData {
@@ -110,4 +170,10 @@ export function isMultipartData(
 	return (
 		(parsedData as SubstrateMultiParsedData)?.isMultipart || hasMultiFrames
 	);
+}
+
+export function isNetworkParsedData(
+	parsedData: ParsedData | null
+): parsedData is NetworkParsedData {
+	return (parsedData as NetworkParsedData).action === 'addNetwork';
 }

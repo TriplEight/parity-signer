@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React, { ReactElement } from 'react';
+import React, { ReactElement, useContext } from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
@@ -23,11 +23,10 @@ import Address from './Address';
 import TouchableItem from './TouchableItem';
 import AccountPrefixedTitle from './AccountPrefixedTitle';
 
+import { NetworksContext } from 'stores/NetworkContext';
 import Separator from 'components/Separator';
-import { NETWORK_LIST, NetworkProtocols } from 'constants/networkSpecs';
 import fontStyles from 'styles/fontStyles';
 import colors from 'styles/colors';
-import { NetworkParams } from 'types/networkSpecsTypes';
 import { ButtonListener } from 'types/props';
 
 const CardSeparator = (): ReactElement => (
@@ -41,18 +40,12 @@ const CardSeparator = (): ReactElement => (
 	/>
 );
 
-const NetworkFooter = ({
-	networkColor,
-	network
-}: {
-	networkColor: string;
-	network: NetworkParams;
-}): React.ReactElement => (
+const NetworkFooter = ({ color }: { color: string }): React.ReactElement => (
 	<View
 		style={[
 			styles.footer,
 			{
-				backgroundColor: networkColor || network.color
+				backgroundColor: color
 			}
 		]}
 	/>
@@ -69,17 +62,15 @@ export function NetworkCard({
 	isAdd?: boolean;
 	networkColor?: string;
 	networkKey?: string;
-	onPress: ButtonListener;
+	onPress?: ButtonListener;
 	testID?: string;
 	title: string;
 }): ReactElement {
-	const network =
-		networkKey !== undefined
-			? NETWORK_LIST[networkKey]
-			: NETWORK_LIST[NetworkProtocols.UNKNOWN];
-
+	const { getNetwork } = useContext(NetworksContext);
+	const networkParams = getNetwork(networkKey ?? '');
+	const isDisabled = onPress === undefined;
 	return (
-		<TouchableItem testID={testID} disabled={false} onPress={onPress}>
+		<TouchableItem testID={testID} disabled={isDisabled} onPress={onPress}>
 			<CardSeparator />
 			<View style={styles.content}>
 				{isAdd ? (
@@ -94,15 +85,16 @@ export function NetworkCard({
 						<Icon name="add" color={colors.text.main} size={30} />
 					</View>
 				) : (
-					<AccountIcon address={''} network={network} style={styles.icon} />
+					<AccountIcon
+						address={''}
+						network={networkParams}
+						style={styles.icon}
+					/>
 				)}
 				<View style={styles.desc}>
 					<AccountPrefixedTitle title={title} />
 				</View>
-				<NetworkFooter
-					network={network}
-					networkColor={networkColor ?? network.color}
-				/>
+				<NetworkFooter color={networkColor ?? networkParams.color} />
 			</View>
 		</TouchableItem>
 	);
@@ -129,13 +121,11 @@ export default function AccountCard({
 	title,
 	titlePrefix
 }: AccountCardProps): ReactElement {
+	const { getNetwork } = useContext(NetworksContext);
 	const defaultTitle = 'No name';
 	const displayTitle = title.length > 0 ? title : defaultTitle;
 	const seedTypeDisplay = seedType || '';
-	const network =
-		networkKey !== undefined
-			? NETWORK_LIST[networkKey]
-			: NETWORK_LIST[NetworkProtocols.UNKNOWN];
+	const network = getNetwork(networkKey ?? '');
 
 	return (
 		<TouchableItem
@@ -161,7 +151,7 @@ export default function AccountCard({
 						<Address address={address} protocol={network.protocol} />
 					)}
 				</View>
-				<NetworkFooter network={network} networkColor={network.color} />
+				<NetworkFooter color={network.color} />
 			</View>
 		</TouchableItem>
 	);

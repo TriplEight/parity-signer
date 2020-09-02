@@ -1,4 +1,4 @@
-// Copyright 2015-2019 Parity Technologies (UK) Ltd.
+// Copyright 2015-2020 Parity Technologies (UK) Ltd.
 // This file is part of Parity.
 
 // Parity is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React, { ReactElement, ReactNode } from 'react';
+import React, { ReactElement, ReactNode, useContext } from 'react';
 import { View, StyleSheet, Text, ViewStyle, TextStyle } from 'react-native';
 import AntIcon from 'react-native-vector-icons/AntDesign';
 import { Icon } from 'react-native-elements';
@@ -22,8 +22,9 @@ import { Icon } from 'react-native-elements';
 import ButtonIcon from './ButtonIcon';
 import AccountIcon from './AccountIcon';
 
+import { NetworksContext } from 'stores/NetworkContext';
+import TouchableItem from 'components/TouchableItem';
 import testIDs from 'e2e/testIDs';
-import { NETWORK_LIST } from 'constants/networkSpecs';
 import fontStyles from 'styles/fontStyles';
 import fonts from 'styles/fonts';
 import colors from 'styles/colors';
@@ -95,13 +96,15 @@ export function LeftScreenHeading({
 	subtitle,
 	hasSubtitleIcon,
 	headMenu,
-	networkKey
+	networkKey,
+	onPress
 }: {
 	title: string;
 	subtitle?: string;
 	hasSubtitleIcon?: boolean;
 	headMenu?: React.ReactElement;
 	networkKey: string;
+	onPress?: () => any;
 }): ReactElement {
 	const titleStyle: TextStyle = {
 		...fontStyles.h2,
@@ -112,12 +115,18 @@ export function LeftScreenHeading({
 		...baseStyles.text,
 		...baseStyles.t_left
 	};
+	const { getNetwork } = useContext(NetworksContext);
+	const isDisabled = onPress === undefined;
 	return (
-		<View style={baseStyles.bodyWithIcon}>
+		<TouchableItem
+			style={baseStyles.bodyWithIcon}
+			onPress={onPress}
+			disabled={isDisabled}
+		>
 			<View style={{ alignItems: 'center', flexDirection: 'row' }}>
 				<AccountIcon
 					address={''}
-					network={NETWORK_LIST[networkKey]}
+					network={getNetwork(networkKey)}
 					style={baseStyles.networkIcon}
 				/>
 				<View>
@@ -128,7 +137,7 @@ export function LeftScreenHeading({
 				</View>
 			</View>
 			{headMenu}
-		</View>
+		</TouchableItem>
 	);
 }
 

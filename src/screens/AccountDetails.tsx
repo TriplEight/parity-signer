@@ -14,11 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SafeAreaViewContainer } from 'components/SafeAreaContainer';
-import { NETWORK_LIST, NetworkProtocols } from 'constants/networkSpecs';
+import { NetworkProtocols } from 'constants/networkSpecs';
+import { AccountsContext } from 'stores/AccountsContext';
+import { AlertStateContext } from 'stores/alertContext';
+import { NetworksContext } from 'stores/NetworkContext';
 import colors from 'styles/colors';
 import AccountCard from 'components/AccountCard';
 import QrView from 'components/QrView';
@@ -30,32 +33,32 @@ import {
 } from 'utils/navigationHelpers';
 import fontStyles from 'styles/fontStyles';
 import { UnknownAccountWarning } from 'components/Warnings';
-import { withAccountStore } from 'utils/HOC';
 import AccountIcon from 'components/AccountIcon';
-import { NavigationAccountProps } from 'types/props';
+import { NavigationProps } from 'types/props';
 import QrScannerTab from 'components/QrScannerTab';
 
-function AccountDetails({
-	accounts,
+export default function AccountDetails({
 	navigation
-}: NavigationAccountProps<'AccountDetails'>): React.ReactElement {
-	const account = accounts.getSelected();
-	const selectedKey = accounts.getSelectedKey();
+}: NavigationProps<'AccountDetails'>): React.ReactElement {
+	const accountsStore = useContext(AccountsContext);
+	const account = accountsStore.getSelected();
+	const { getNetwork } = useContext(NetworksContext);
+	const { setAlert } = useContext(AlertStateContext);
+	const { accounts, selectedKey } = accountsStore.state;
 
 	if (!account) return <View />;
 
-	const protocol =
-		(account.networkKey &&
-			NETWORK_LIST[account.networkKey] &&
-			NETWORK_LIST[account.networkKey].protocol) ||
-		NetworkProtocols.UNKNOWN;
+	const network = getNetwork(account.networkKey);
+
+	const protocol = network.protocol;
 
 	const onDelete = (): void => {
 		alertDeleteLegacyAccount(
+			setAlert,
 			account.name || account.address || 'this account',
 			async () => {
-				await accounts.deleteAccount(selectedKey);
-				if (accounts.getAccounts().size === 0) {
+				await accountsStore.deleteAccount(selectedKey);
+				if (accounts.size === 0) {
 					return navigateToLandingPage(navigation);
 				}
 				navigateToLegacyAccountList(navigation);
@@ -76,13 +79,9 @@ function AccountDetails({
 
 	return (
 		<SafeAreaViewContainer>
-			<ScrollView contentContainerStyle={styles.scrollBody}>
+			<ScrollView style={styles.scrollBody} bounces={false}>
 				<View style={styles.header}>
-					<AccountIcon
-						address={''}
-						network={NETWORK_LIST[account.networkKey]}
-						style={styles.icon}
-					/>
+					<AccountIcon address={''} network={network} style={styles.icon} />
 					<Text style={fontStyles.h2}>Public Address</Text>
 					<View style={styles.menuView}>
 						<PopupMenu
@@ -110,23 +109,16 @@ function AccountDetails({
 					title={account.name}
 				/>
 				<View>
-					{protocol !== NetworkProtocols.UNKNOWN ? (
-						<QrView
-							data={
-								account.name ? `${selectedKey}:${account.name}` : selectedKey
-							}
-						/>
-					) : (
-						<UnknownAccountWarning />
-					)}
+					<QrView
+						data={account.name ? `${selectedKey}:${account.name}` : selectedKey}
+					/>
+					{protocol === NetworkProtocols.UNKNOWN && <UnknownAccountWarning />}
 				</View>
 			</ScrollView>
 			<QrScannerTab />
 		</SafeAreaViewContainer>
 	);
 }
-
-export default withAccountStore(AccountDetails);
 
 const styles = StyleSheet.create({
 	body: {
@@ -152,7 +144,6 @@ const styles = StyleSheet.create({
 	scrollBody: {
 		alignContent: 'flex-start',
 		flex: 1,
-		paddingBottom: 40,
 		paddingTop: 8
 	}
 });

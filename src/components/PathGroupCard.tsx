@@ -16,7 +16,7 @@
 
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React from 'react';
+import React, { useContext } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import testIDs from '../../test/e2e/testIDs';
@@ -24,6 +24,7 @@ import testIDs from '../../test/e2e/testIDs';
 import PathCard from './PathCard';
 import Separator from './Separator';
 
+import { AlertStateContext } from 'stores/alertContext';
 import colors from 'styles/colors';
 import TouchableItem from 'components/TouchableItem';
 import fontStyles from 'styles/fontStyles';
@@ -33,10 +34,10 @@ import {
 	PathGroup
 } from 'types/identityTypes';
 import {
-	isSubstrateNetworkParams,
+	isUnknownNetworkParams,
 	SubstrateNetworkParams,
 	UnknownNetworkParams
-} from 'types/networkSpecsTypes';
+} from 'types/networkTypes';
 import { removeSlash } from 'utils/identitiesUtils';
 import { useSeedRef } from 'utils/seedRefHooks';
 import { unlockSeedPhrase } from 'utils/navigationHelpers';
@@ -44,7 +45,7 @@ import { alertPathDerivationError } from 'utils/alertUtils';
 import { RootStackParamList } from 'types/routes';
 
 type Props = {
-	accounts: AccountsStoreStateWithIdentity;
+	accountsStore: AccountsStoreStateWithIdentity;
 	currentIdentity: Identity;
 	pathGroup: PathGroup;
 	networkParams: SubstrateNetworkParams | UnknownNetworkParams;
@@ -54,9 +55,10 @@ export default function PathGroupCard({
 	currentIdentity,
 	pathGroup,
 	networkParams,
-	accounts
+	accountsStore
 }: Props): React.ReactElement {
 	const navigation = useNavigation<StackNavigationProp<RootStackParamList>>();
+	const { setAlert } = useContext(AlertStateContext);
 	const paths = pathGroup.paths;
 	const { isSeedRefValid, substrateAddress } = useSeedRef(
 		currentIdentity.encryptedSeed
@@ -84,25 +86,23 @@ export default function PathGroupCard({
 		const nextPath = _getFullPath(nextIndex, isHardDerivation);
 		const name = removeSlash(`${pathGroup.title}${nextIndex}`);
 		try {
-			await accounts.deriveNewPath(
+			await accountsStore.deriveNewPath(
 				nextPath,
 				substrateAddress,
-				(networkParams as SubstrateNetworkParams).genesisHash,
+				networkParams as SubstrateNetworkParams,
 				name,
 				''
 			);
 		} catch (error) {
-			alertPathDerivationError(error.message);
+			alertPathDerivationError(setAlert, error.message);
 		}
 	};
 
-	const _deletePath = async (): Promise<void> => {
-		const targetPath = paths[paths.length - 1];
-		await accounts.deletePath(targetPath);
-	};
-
+	const isUnknownNetwork = isUnknownNetworkParams(networkParams);
 	const headerTitle = removeSlash(pathGroup.title);
-	const headerCode = `//${networkParams.pathId}${pathGroup.title}`;
+	const headerCode = isUnknownNetwork
+		? pathGroup.title
+		: `//${networkParams.pathId}${pathGroup.title}`;
 	return (
 		<View key={`group${pathGroup.title}`} style={{ marginTop: 24 }}>
 			<Separator shadow={true} style={styles.separator} />
@@ -113,7 +113,7 @@ export default function PathGroupCard({
 						<Text style={fontStyles.t_codeS}>{headerCode}</Text>
 					</View>
 				</View>
-				{isSubstrateNetworkParams(networkParams) && (
+				{!isUnknownNetwork && (
 					<TouchableItem
 						onPress={(): any => addDerivationPath(true)}
 						style={styles.derivationButton}

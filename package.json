@@ -1,6 +1,6 @@
 {
   "name": "NativeSigner",
-  "version": "4.4.0-beta",
+  "version": "4.5.1-beta",
   "private": true,
   "license": "GPL-3.0",
   "engines": {
@@ -10,7 +10,7 @@
   "scripts": {
     "android": "npx react-native run-android",
     "build-prod:ios": "NODE_OPTIONS=--max_old_space_size=8192 npx react-native bundle --dev false --entry-file index.js --bundle-output ios/main.jsbundle --platform ios --assets-dest='./ios'",
-    "build": "yarn install && (cd ios && pod install)",
+    "build": "yarn install && npx pod-install",
     "xcbuild:debug": "xcodebuild -workspace ios/NativeSigner.xcworkspace -scheme NativeSigner -configuration Debug -sdk iphonesimulator -derivedDataPath ios/build/NativeSigner",
     "xcbuild:release": "xcodebuild -workspace ios/NativeSigner.xcworkspace -scheme NativeSigner -configuration Release -sdk iphonesimulator -derivedDataPath ios/build/NativeSigner -UseModernBuildSystem=YES | xcpretty -t && exit ${PIPESTATUS[0]}",
     "xcbuild:githubActions": "xcodebuild -workspace ios/NativeSigner.xcworkspace -scheme NativeSigner -configuration GithubActions -sdk iphonesimulator -derivedDataPath ios/build/NativeSigner -UseModernBuildSystem=YES | xcpretty -t && exit ${PIPESTATUS[0]}",
@@ -38,16 +38,17 @@
     }
   },
   "dependencies": {
-    "@polkadot/api": "1.16.1",
+    "@polkadot/api": "1.26.1",
     "@polkadot/reactnative-identicon": "0.53.1",
-    "@polkadot/types": "1.16.1",
-    "@polkadot/types-known": "1.16.1",
+    "@polkadot/types": "1.26.1",
+    "@polkadot/types-known": "1.26.1",
     "@polkadot/util": "2.11.1",
     "@polkadot/util-crypto": "2.11.1",
+    "@react-native-community/async-storage": "^1.11.0",
     "@react-native-community/masked-view": "^0.1.6",
-    "@react-navigation/native": "^5.6.1",
-    "@react-navigation/stack": "^5.6.2",
     "@react-native-community/netinfo": "^5.9.3",
+    "@react-navigation/native": "^5.7.1",
+    "@react-navigation/stack": "^5.7.1",
     "bignumber.js": "^9.0.0",
     "hoist-non-react-statics": "^3.3.0",
     "node-libs-react-native": "^1.0.3",
@@ -63,12 +64,11 @@
     "react-native-randombytes": "^3.5.3",
     "react-native-screens": "^2.0.0-alpha.32",
     "react-native-secure-storage": "git+https://github.com/paritytech/react-native-secure-storage.git#master",
-    "react-native-substrate-sign": "1.0.3",
+    "react-native-substrate-sign": "1.1.1",
     "react-native-svg": "12.1.0",
     "react-native-tabs": "^1.0.9",
-    "react-native-vector-icons": "^6.6.0",
+    "react-native-vector-icons": "^7.0.0",
     "readable-stream": "^3.4.0",
-    "unstated": "^2.1.1",
     "vm-browserify": "1.1.0"
   },
   "devDependencies": {
@@ -80,8 +80,8 @@
     "@babel/runtime": "^7.9.6",
     "@react-native-community/eslint-config": "^1.1.0",
     "@types/detox": "^14.5.2",
-    "@types/jasmine": "^3.5.10",
-    "@types/jest": "^25.2.1",
+    "@types/jasmine": "^3.5.12",
+    "@types/jest": "^25.2.3",
     "@types/react": "^16.9.34",
     "@types/react-native": "^0.62.2",
     "@typescript-eslint/eslint-plugin": "^2.26.0",
@@ -108,7 +108,7 @@
     "react-test-renderer": "16.13.1",
     "reactotron-react-native": "5.0.0",
     "ts-jest": "^25.4.0",
-    "typescript": "^3.9.5"
+    "typescript": "^3.9.7"
   },
   "resolutions": {
     "kind-of": ">=6.0.3"
@@ -128,7 +128,7 @@
         "build": "yarn xcbuild:githubActions",
         "type": "ios.simulator",
         "device": {
-          "os": "iOS 13.5",
+          "os": "iOS 13.6",
           "type": "iPhone 8"
         }
       },

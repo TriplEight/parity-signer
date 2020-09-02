@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { ScrollView } from 'react-native';
 
 import ScreenHeading from 'components/ScreenHeading';
@@ -23,17 +23,19 @@ import QrView from 'components/QrView';
 import { SafeAreaViewContainer } from 'components/SafeAreaContainer';
 import { PasswordedAccountExportWarning } from 'components/Warnings';
 import testIDs from 'e2e/testIDs';
+import { NetworksContext } from 'stores/NetworkContext';
 import { NavigationAccountIdentityProps } from 'types/props';
-import { withAccountStore, withCurrentIdentity } from 'utils/HOC';
+import { withCurrentIdentity } from 'utils/HOC';
 import { getNetworkKey, getPathName } from 'utils/identitiesUtils';
 import { useSeedRef } from 'utils/seedRefHooks';
 
 function PathSecret({
-	accounts,
+	accountsStore,
 	route,
 	navigation
 }: NavigationAccountIdentityProps<'PathSecret'>): React.ReactElement {
-	const { currentIdentity } = accounts.state;
+	const networksContextState = useContext(NetworksContext);
+	const { currentIdentity } = accountsStore.state;
 	const [secret, setSecret] = useState<string>('');
 	const { substrateSecret, isSeedRefValid } = useSeedRef(
 		currentIdentity.encryptedSeed
@@ -43,7 +45,11 @@ function PathSecret({
 
 	useEffect(() => {
 		const getAndSetSecret = async (): Promise<void> => {
-			const networkKey = getNetworkKey(path, currentIdentity);
+			const networkKey = getNetworkKey(
+				path,
+				currentIdentity,
+				networksContextState
+			);
 			const password = route.params.password ?? '';
 			const accountName = getPathName(path, currentIdentity);
 			const generatedSecret = await substrateSecret(`${path}///${password}`);
@@ -58,14 +64,17 @@ function PathSecret({
 		navigation,
 		currentIdentity,
 		isSeedRefValid,
-		substrateSecret
+		substrateSecret,
+		networksContextState
 	]);
 
 	return (
 		<SafeAreaViewContainer>
 			<ScreenHeading
 				title={'Export Account'}
-				subtitle={'export this account to an hot machine'}
+				subtitle={
+					'Export this account to an hot machine, keep this QR safe, the QR allows any one to recover the account and access its fund'
+				}
 			/>
 			<ScrollView testID={testIDs.PathSecret.screen} bounces={false}>
 				<PathCard identity={currentIdentity} path={path} />
@@ -76,4 +85,4 @@ function PathSecret({
 	);
 }
 
-export default withAccountStore(withCurrentIdentity(PathSecret));
+export default withCurrentIdentity(PathSecret);

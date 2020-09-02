@@ -14,41 +14,37 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import { NETWORK_LIST, SubstrateNetworkKeys } from 'constants/networkSpecs';
+import { SubstrateNetworkKeys } from 'constants/networkSpecs';
 import { UnlockedAccount } from 'types/identityTypes';
 import {
 	EthereumNetworkParams,
 	isSubstrateNetworkParams,
-	isUnknownNetworkParams
-} from 'types/networkSpecsTypes';
+	isUnknownNetworkParams,
+	NetworkParams
+} from 'types/networkTypes';
 import { ValidSeed } from 'types/utilTypes';
 
-export function generateAccountId({
-	address,
-	networkKey
-}: {
-	address: string;
-	networkKey: string;
-}): string {
-	if (
-		typeof address !== 'string' ||
-		address.length === 0 ||
-		!networkKey ||
-		!NETWORK_LIST[networkKey]
-	) {
+export function generateAccountId(
+	address: string,
+	networkKey: string,
+	allNetworks: Map<string, NetworkParams>
+): string {
+	if (typeof address !== 'string' || address.length === 0 || !networkKey) {
 		throw new Error(
 			"Couldn't create an accountId. Address or networkKey missing, or network key was invalid."
 		);
 	}
 
-	const networkParams = NETWORK_LIST[networkKey];
-	const { protocol } = networkParams;
+	const networkParams = allNetworks.get(networkKey);
+	if (networkParams === undefined)
+		return `substrate:${address}:${networkKey ?? ''}`;
 
+	const { protocol } = networkParams;
 	if (isSubstrateNetworkParams(networkParams)) {
 		const { genesisHash } = networkParams;
 		return `${protocol}:${address}:${genesisHash ?? ''}`;
 	} else if (isUnknownNetworkParams(networkParams)) {
-		return `substrate:${address}`;
+		return `substrate:${address}:${networkKey ?? ''}`;
 	} else {
 		const { ethereumChainId } = networkParams as EthereumNetworkParams;
 		return `${protocol}:0x${address}@${ethereumChainId}`;
@@ -103,7 +99,7 @@ export function validateSeed(seed: string, validBip39Seed: boolean): ValidSeed {
 			accountRecoveryAllowed: true,
 			bip39: false,
 			reason:
-				'This recovery phrase is not a valid BIP39 seed, will be treated as a legacy Parity brain wallet.',
+				'This recovery phrase is not a valid BIP39 seed, will be treated as a legacy Parity brain wallet. Make sure you understand the risks.',
 			valid: false
 		};
 	}

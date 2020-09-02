@@ -14,13 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { AppState, AppStateStatus, StyleSheet, Text, View } from 'react-native';
 
 import { SafeAreaScrollViewContainer } from 'components/SafeAreaContainer';
-import { NetworkProtocols, NETWORK_LIST } from 'constants/networkSpecs';
+import { NetworkProtocols } from 'constants/networkSpecs';
+import { AccountsContext } from 'stores/AccountsContext';
+import { AlertStateContext } from 'stores/alertContext';
+import { NetworksContext } from 'stores/NetworkContext';
 import { UnlockedAccount } from 'types/identityTypes';
-import { NavigationAccountProps } from 'types/props';
+import { NavigationProps } from 'types/props';
 import colors from 'styles/colors';
 import fonts from 'styles/fonts';
 import fontStyles from 'styles/fontStyles';
@@ -29,14 +32,15 @@ import Button from 'components/Button';
 import ScreenHeading from 'components/ScreenHeading';
 import TouchableItem from 'components/TouchableItem';
 import DerivationPasswordVerify from 'components/DerivationPasswordVerify';
-import { withAccountStore } from 'utils/HOC';
 import { alertBackupDone, alertCopyBackupPhrase } from 'utils/alertUtils';
 
 function LegacyAccountBackup({
-	accounts,
 	navigation,
 	route
-}: NavigationAccountProps<'LegacyAccountBackup'>): React.ReactElement {
+}: NavigationProps<'LegacyAccountBackup'>): React.ReactElement {
+	const accountsStore = useContext(AccountsContext);
+	const { getNetwork } = useContext(NetworksContext);
+	const { selectedKey, newAccount } = accountsStore.state;
 	useEffect(() => {
 		const handleAppStateChange = (nextAppState: AppStateStatus): void => {
 			if (nextAppState === 'inactive') {
@@ -46,17 +50,16 @@ function LegacyAccountBackup({
 
 		AppState.addEventListener('change', handleAppStateChange);
 		return (): void => {
-			const selectedKey = accounts.getSelectedKey();
-
 			if (selectedKey) {
-				accounts.lockAccount(selectedKey);
+				accountsStore.lockAccount(selectedKey);
 			}
 
 			AppState.removeEventListener('change', handleAppStateChange);
 		};
-	}, [navigation, accounts]);
+	}, [navigation, accountsStore, selectedKey]);
 
 	const { navigate } = navigation;
+	const { setAlert } = useContext(AlertStateContext);
 	const isNew = route.params?.isNew ?? false;
 	const {
 		address,
@@ -66,10 +69,8 @@ function LegacyAccountBackup({
 		networkKey,
 		seed = '',
 		seedPhrase = ''
-	} = isNew ? accounts.getNew() : (accounts.getSelected() as UnlockedAccount);
-	const protocol =
-		(NETWORK_LIST[networkKey] && NETWORK_LIST[networkKey].protocol) ||
-		NetworkProtocols.UNKNOWN;
+	} = isNew ? newAccount : (accountsStore.getSelected() as UnlockedAccount);
+	const protocol = getNetwork(networkKey).protocol;
 
 	return (
 		<SafeAreaScrollViewContainer style={styles.body}>
@@ -86,9 +87,15 @@ function LegacyAccountBackup({
 						// only allow the copy of the recovery phrase in dev environment
 						if (__DEV__) {
 							if (protocol === NetworkProtocols.SUBSTRATE) {
-								alertCopyBackupPhrase(`${seedPhrase}${derivationPath}`);
+								alertCopyBackupPhrase(
+									setAlert,
+									`${seedPhrase}${derivationPath}`
+								);
 							} else {
-								alertCopyBackupPhrase(seedPhrase === '' ? seed : seedPhrase);
+								alertCopyBackupPhrase(
+									setAlert,
+									seedPhrase === '' ? seed : seedPhrase
+								);
 							}
 						}
 					}}
@@ -107,7 +114,7 @@ function LegacyAccountBackup({
 					<Button
 						title="Backup Done"
 						onPress={(): void => {
-							alertBackupDone(() => {
+							alertBackupDone(setAlert, () => {
 								navigate('AccountPin', { isNew });
 							});
 						}}
@@ -118,7 +125,7 @@ function LegacyAccountBackup({
 	);
 }
 
-export default withAccountStore(LegacyAccountBackup);
+export default LegacyAccountBackup;
 
 const styles = StyleSheet.create({
 	body: {

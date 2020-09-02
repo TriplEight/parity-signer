@@ -14,44 +14,37 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useContext } from 'react';
 
 import PasswordInput from 'components/PasswordInput';
 import testIDs from 'e2e/testIDs';
 import { defaultNetworkKey, UnknownNetworkKeys } from 'constants/networkSpecs';
-import { Identity } from 'types/identityTypes';
+import { AlertStateContext } from 'stores/alertContext';
+import { NetworksContext } from 'stores/NetworkContext';
 import { NavigationAccountIdentityProps } from 'types/props';
-import { withAccountStore } from 'utils/HOC';
 import TextInput from 'components/TextInput';
+import { withCurrentIdentity } from 'utils/HOC';
 import {
 	extractPathId,
 	getNetworkKey,
-	getNetworkKeyByPathId,
+	getSubstrateNetworkKeyByPathId,
 	validateDerivedPath
 } from 'utils/identitiesUtils';
 import { unlockSeedPhrase } from 'utils/navigationHelpers';
-import { alertDeriveSuccess, alertPathDerivationError } from 'utils/alertUtils';
+import { alertPathDerivationError } from 'utils/alertUtils';
 import Separator from 'components/Separator';
 import ScreenHeading from 'components/ScreenHeading';
 import PathCard from 'components/PathCard';
-import { NetworkSelector, NetworkOptions } from 'components/NetworkSelector';
+import {
+	DerivationNetworkSelector,
+	NetworkOptions
+} from 'components/DerivationNetworkSelector';
 import { useSeedRef } from 'utils/seedRefHooks';
 import Button from 'components/Button';
 import { KeyboardAwareContainer } from 'modules/unlock/components/Container';
 
-function getParentNetworkKey(
-	parentPath: string,
-	currentIdentity: Identity
-): string {
-	if (currentIdentity.meta.has(parentPath)) {
-		return getNetworkKey(parentPath, currentIdentity);
-	}
-	const pathId = extractPathId(parentPath);
-	return getNetworkKeyByPathId(pathId);
-}
-
 function PathDerivation({
-	accounts,
+	accountsStore,
 	navigation,
 	route
 }: NavigationAccountIdentityProps<'PathDerivation'>): React.ReactElement {
@@ -59,16 +52,26 @@ function PathDerivation({
 	const [keyPairsName, setKeyPairsName] = useState<string>('');
 	const [modalVisible, setModalVisible] = useState<boolean>(false);
 	const [password, setPassword] = useState<string>('');
+	const networkContextState = useContext(NetworksContext);
 	const pathNameInput = useRef<TextInput>(null);
-	const currentIdentity = accounts.state.currentIdentity;
+	const { setAlert } = useContext(AlertStateContext);
+	const currentIdentity = accountsStore.state.currentIdentity;
 	const { isSeedRefValid, substrateAddress } = useSeedRef(
 		currentIdentity.encryptedSeed
 	);
 	const parentPath = route.params.parentPath;
-	const parentNetworkKey = useMemo(
-		() => getParentNetworkKey(parentPath, currentIdentity),
-		[parentPath, currentIdentity]
-	);
+
+	const parentNetworkKey = useMemo((): string => {
+		const { networks, pathIds } = networkContextState;
+		function getParentNetworkKey(): string {
+			if (currentIdentity.meta.has(parentPath)) {
+				return getNetworkKey(parentPath, currentIdentity, networkContextState);
+			}
+			const pathId = extractPathId(parentPath, pathIds);
+			return getSubstrateNetworkKeyByPathId(pathId, networks);
+		}
+		return getParentNetworkKey();
+	}, [currentIdentity, networkContextState, parentPath]);
 
 	const [customNetworkKey, setCustomNetworkKey] = useState(
 		parentNetworkKey === UnknownNetworkKeys.UNKNOWN
@@ -85,17 +88,17 @@ function PathDerivation({
 	const onPathDerivation = async (): Promise<void> => {
 		await unlockSeedPhrase(navigation, isSeedRefValid);
 		try {
-			await accounts.deriveNewPath(
+			await accountsStore.deriveNewPath(
 				completePath,
 				substrateAddress,
-				currentNetworkKey,
+				networkContextState.getSubstrateNetwork(currentNetworkKey),
 				keyPairsName,
 				password
 			);
-			alertDeriveSuccess();
+			setAlert('Success', 'New Account Successfully derived');
 			navigation.goBack();
 		} catch (error) {
-			alertPathDerivationError(error.message);
+			alertPathDerivationError(setAlert, error.message);
 		}
 	};
 
@@ -133,7 +136,7 @@ function PathDerivation({
 				value={keyPairsName}
 			/>
 			{enableCustomNetwork && (
-				<NetworkSelector
+				<DerivationNetworkSelector
 					networkKey={customNetworkKey}
 					setVisible={setModalVisible}
 				/>
@@ -145,7 +148,7 @@ function PathDerivation({
 				onSubmitEditing={onPathDerivation}
 			/>
 			<PathCard
-				identity={accounts.state.currentIdentity}
+				identity={accountsStore.state.currentIdentity!}
 				isPathValid={isPathValid}
 				name={keyPairsName}
 				path={password === '' ? completePath : `${completePath}///${password}`}
@@ -168,4 +171,4 @@ function PathDerivation({
 	);
 }
 
-export default withAccountStore(PathDerivation);
+export default withCurrentIdentity(PathDerivation);

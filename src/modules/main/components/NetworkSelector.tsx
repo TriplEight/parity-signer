@@ -14,28 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Parity.  If not, see <http://www.gnu.org/licenses/>.
 
-import React, { ReactElement, useMemo, useState } from 'react';
+import React, { ReactElement, useContext, useMemo, useState } from 'react';
 import { BackHandler, FlatList, FlatListProps } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 
+import { filterNetworks } from 'modules/network/utils';
 import { NetworkCard } from 'components/AccountCard';
 import { SafeAreaViewContainer } from 'components/SafeAreaContainer';
 import ScreenHeading, { IdentityHeading } from 'components/ScreenHeading';
-import {
-	NETWORK_LIST,
-	SubstrateNetworkKeys,
-	UnknownNetworkKeys
-} from 'constants/networkSpecs';
 import testIDs from 'e2e/testIDs';
+import { AlertStateContext } from 'stores/alertContext';
+import { NetworksContext } from 'stores/NetworkContext';
 import colors from 'styles/colors';
 import {
 	isEthereumNetworkParams,
 	isSubstrateNetworkParams,
 	NetworkParams,
 	SubstrateNetworkParams
-} from 'types/networkSpecsTypes';
+} from 'types/networkTypes';
 import { NavigationAccountIdentityProps } from 'types/props';
 import { alertPathDerivationError } from 'utils/alertUtils';
+import { withCurrentIdentity } from 'utils/HOC';
 import { getExistedNetworkKeys, getIdentityName } from 'utils/identitiesUtils';
 import {
 	navigateToPathDetails,
@@ -46,25 +45,20 @@ import {
 import { useSeedRef } from 'utils/seedRefHooks';
 import QrScannerTab from 'components/QrScannerTab';
 
-const excludedNetworks = [
-	UnknownNetworkKeys.UNKNOWN,
-	SubstrateNetworkKeys.KUSAMA_CC2
-];
-if (!__DEV__) {
-	excludedNetworks.push(SubstrateNetworkKeys.SUBSTRATE_DEV);
-	excludedNetworks.push(SubstrateNetworkKeys.KUSAMA_DEV);
-}
-
-export default function NetworkSelector({
-	accounts,
+function NetworkSelector({
+	accountsStore,
 	navigation,
 	route
 }: NavigationAccountIdentityProps<'Main'>): React.ReactElement {
 	const isNew = route.params?.isNew ?? false;
 	const [shouldShowMoreNetworks, setShouldShowMoreNetworks] = useState(false);
-	const { identities, currentIdentity } = accounts.state;
+	const { identities, currentIdentity } = accountsStore.state;
+	const networkContextState = useContext(NetworksContext);
+	const { getSubstrateNetwork, allNetworks } = networkContextState;
 	const seedRefHooks = useSeedRef(currentIdentity.encryptedSeed);
 	const { unlockWithoutPassword } = useUnlockSeed(seedRefHooks.isSeedRefValid);
+
+	const { setAlert } = useContext(AlertStateContext);
 	// catch android back button and prevent exiting the app
 	useFocusEffect(
 		React.useCallback((): any => {
@@ -90,30 +84,6 @@ export default function NetworkSelector({
 			params: { parentPath: '' }
 		});
 
-	const sortNetworkKeys = (
-		[, params1]: [any, NetworkParams],
-		[, params2]: [any, NetworkParams]
-	): number => {
-		if (params1.order > params2.order) {
-			return 1;
-		} else if (params1.order < params2.order) {
-			return -1;
-		} else {
-			return 0;
-		}
-	};
-
-	const filterNetworkKeys = ([networkKey]: [string, any]): boolean => {
-		const shouldExclude = excludedNetworks.includes(networkKey);
-		if (isNew && !shouldExclude) return true;
-
-		if (shouldShowMoreNetworks) {
-			if (shouldExclude) return false;
-			return !availableNetworks.includes(networkKey);
-		}
-		return availableNetworks.includes(networkKey);
-	};
-
 	const deriveSubstrateNetworkRootPath = async (
 		networkKey: string,
 		networkParams: SubstrateNetworkParams
@@ -122,29 +92,30 @@ export default function NetworkSelector({
 		await unlockSeedPhrase(navigation, seedRefHooks.isSeedRefValid);
 		const fullPath = `//${pathId}`;
 		try {
-			await accounts.deriveNewPath(
+			await accountsStore.deriveNewPath(
 				fullPath,
 				seedRefHooks.substrateAddress,
-				networkKey,
+				getSubstrateNetwork(networkKey),
 				`${networkParams.title} root`,
 				''
 			);
 			navigateToPathDetails(navigation, networkKey, fullPath);
 		} catch (error) {
-			alertPathDerivationError(error.message);
+			alertPathDerivationError(setAlert, error.message);
 		}
 	};
 
 	const deriveEthereumAccount = async (networkKey: string): Promise<void> => {
 		await unlockSeedPhrase(navigation, seedRefHooks.isSeedRefValid);
 		try {
-			await accounts.deriveEthereumAccount(
+			await accountsStore.deriveEthereumAccount(
 				seedRefHooks.brainWalletAddress,
-				networkKey
+				networkKey,
+				allNetworks
 			);
 			navigateToPathsList(navigation, networkKey);
 		} catch (e) {
-			alertPathDerivationError(e.message);
+			alertPathDerivationError(setAlert, e.message);
 		}
 	};
 
@@ -209,11 +180,23 @@ export default function NetworkSelector({
 	};
 
 	const availableNetworks = useMemo(
-		() => getExistedNetworkKeys(currentIdentity),
-		[currentIdentity]
+		() => getExistedNetworkKeys(currentIdentity, networkContextState),
+		[currentIdentity, networkContextState]
 	);
-	const networkList = Object.entries(NETWORK_LIST).filter(filterNetworkKeys);
-	networkList.sort(sortNetworkKeys);
+
+	const networkList = useMemo(
+		() =>
+			filterNetworks(allNetworks, (networkKey, shouldExclude) => {
+				if (isNew && !shouldExclude) return true;
+
+				if (shouldShowMoreNetworks) {
+					if (shouldExclude) return false;
+					return !availableNetworks.includes(networkKey);
+				}
+				return availableNetworks.includes(networkKey);
+			}),
+		[availableNetworks, isNew, shouldShowMoreNetworks, allNetworks]
+	);
 
 	const renderNetwork = ({
 		item
@@ -252,3 +235,5 @@ export default function NetworkSelector({
 		</SafeAreaViewContainer>
 	);
 }
+
+export default withCurrentIdentity(NetworkSelector);
